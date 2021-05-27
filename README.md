@@ -3,7 +3,7 @@
 This is an example application for REST APIs in golang with gorilla mux router and http package from standard library.
 The storage used is MySQL.
 
-### API documentation 
+## API documentation 
 
 > ___
 > - ANY /
@@ -41,4 +41,25 @@ The storage used is MySQL.
 >   - Retrieves article data from DB for a given ID
 >   - query param : id (article id from GET API)
 > ___
-> 
+
+
+## Installation
+
+installing and running mysql
+> docker run --name mysql-instance -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql
+>
+> docker exec -it mysql-instance mysql -u myuser -p
+
+installing running psql
+> docker run --name postgres-instance -e POSTGRES_PASSWORD=mysecretpassword -d postgres
+>
+> docker exec -it some-postgres psql -U postgres
+
+create new table
+
+> CREATE TABLE articles(
+> id integer PRIMARY KEY,
+> title text,
+> descr text,
+> content text
+> )

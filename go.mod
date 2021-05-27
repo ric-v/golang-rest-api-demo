@@ -1,4 +1,4 @@
-module main
+module github.com/ric-v/golang-rest-api-demo
 
 go 1.16
 
