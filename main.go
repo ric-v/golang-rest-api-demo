@@ -1,15 +1,8 @@
 /*
 REST API DEMO
 
-	createNewArticle
-	returnAllArticles
-	returnSingleArticle
-	updateArticle
-	homepage
-	deleteArticle
-	handleRequests
-	connectToDB
-	main
+Methods : 
+createNewArticle, returnAllArticles, returnSingleArticle, updateArticle, homepage, deleteArticle, handleRequests, connectToDB, main
 */
 package main
 
@@ -22,12 +15,14 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 )
 
 type (
 
 	// App controlls the rest API demo app
 	App struct {
+		DBType   string
 		Router   *mux.Router
 		Database *sql.DB
 	}
@@ -47,7 +42,10 @@ type (
 // creates new article entry to DB
 func (app *App) createNewArticle(w http.ResponseWriter, r *http.Request) {
 
-	var article Article
+	var (
+		query   string
+		article Article
+	)
 
 	log.Println("Endpoint hit : createNewArticle")
 	// get the payload from request
@@ -56,11 +54,14 @@ func (app *App) createNewArticle(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
+	if app.DBType == "mysql" {
+		query = "INSERT INTO articles (title, descr, content) VALUES (?,?,?)"
+	} else if app.DBType == "postgres" {
+		query = "INSERT INTO articles (title, descr, content) VALUES ($1,$2,$3)"
+	}
+
 	// insert data into DB
-	response, err := app.Database.Exec(
-		"INSERT INTO articles (title, descr, content) VALUES (?,?,?)",
-		article.Title, article.Desc, article.Content,
-	)
+	response, err := app.Database.Exec(query, article.Title, article.Desc, article.Content)
 	// if there is an error inserting, handle it
 	if err != nil {
 		panic(err.Error())
@@ -98,10 +99,20 @@ func (app *App) returnAllArticles(w http.ResponseWriter, r *http.Request) {
 
 	// if limti is empty, get all entries else get all entries with limit
 	if limit == "" {
-		query = "SELECT * FROM articles WHERE id > ? ORDER BY id ASC"
+
+		if app.DBType == "mysql" {
+			query = "SELECT * FROM articles WHERE id > ? ORDER BY id ASC"
+		} else if app.DBType == "postgres" {
+			query = "SELECT * FROM articles WHERE id > $1 ORDER BY id ASC"
+		}
 		queryParams = append(queryParams, lastID)
 	} else {
-		query = "SELECT * FROM articles WHERE id > ? ORDER BY id ASC LIMIT ?"
+
+		if app.DBType == "mysql" {
+			query = "SELECT * FROM articles WHERE id > ? ORDER BY id ASC LIMIT ?"
+		} else if app.DBType == "postgres" {
+			query = "SELECT * FROM articles WHERE id > $1 ORDER BY id ASC LIMIT $2"
+		}
 		queryParams = append(queryParams, lastID, limit)
 	}
 	log.Println(query, queryParams)
@@ -154,18 +165,24 @@ func (app *App) returnAllArticles(w http.ResponseWriter, r *http.Request) {
 // return a selected article value from DB
 func (app *App) returnSingleArticle(w http.ResponseWriter, r *http.Request) {
 
-	var article Article
+	var (
+		query   string
+		article Article
+	)
 
 	log.Println("Endpoint hit : returnSingleArticle")
 	// get url path parameters
 	vars := mux.Vars(r)
 	key := vars["id"]
 
+	if app.DBType == "mysql" {
+		query = "SELECT * FROM articles WHERE id=?"
+	} else if app.DBType == "postgres" {
+		query = "SELECT * FROM articles WHERE id=$1"
+	}
+
 	// insert data into DB
-	response, err := app.Database.Query(
-		"SELECT * FROM articles WHERE id=?",
-		key,
-	)
+	response, err := app.Database.Query(query, key)
 	// if there is an error inserting, handle it
 	if err != nil {
 		panic(err.Error())
@@ -203,12 +220,15 @@ func (app *App) returnSingleArticle(w http.ResponseWriter, r *http.Request) {
 // update the article for a given article ID
 func (app *App) updateArticle(w http.ResponseWriter, r *http.Request) {
 
+	var (
+		query          string
+		updatedArticle Article
+	)
+
 	log.Println("Endpoint hit : updateArticle")
 	// get the path parameter
 	vars := mux.Vars(r)
 	key := vars["id"]
-
-	var updatedArticle Article
 
 	// get the payload data for article
 	err := json.NewDecoder(r.Body).Decode(&updatedArticle)
@@ -216,20 +236,20 @@ func (app *App) updateArticle(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
+	if app.DBType == "mysql" {
+		query = "UPDATE articles SET title=?, descr=?, content=? WHERE id=?"
+	} else if app.DBType == "postgres" {
+		query = "UPDATE articles SET title=$1, descr=$2, content=$3 WHERE id=$4"
+	}
+
 	// update data in DB
-	response, err := app.Database.Exec(
-		"UPDATE articles SET title=?, descr=?, content=? WHERE id=?",
-		updatedArticle.Title,
-		updatedArticle.Desc,
-		updatedArticle.Content,
-		key,
-	)
+	response, err := app.Database.Exec(query, updatedArticle.Title, updatedArticle.Desc, updatedArticle.Content, key)
 	// if there is an error inserting, handle it
 	if err != nil {
 		panic(err.Error())
 	}
 	log.Print(response.RowsAffected())
-	log.Println(" mysql update performed.")
+	log.Println(" DB update performed.")
 
 	// return the JSON response for added article
 	json.NewEncoder(w).Encode(updatedArticle)
@@ -241,22 +261,27 @@ func (app *App) updateArticle(w http.ResponseWriter, r *http.Request) {
 // remove an article from DB
 func (app *App) deleteArticle(w http.ResponseWriter, r *http.Request) {
 
+	var query string
+
 	log.Println("Endpoint hit : deleteArticle")
 	// get url path parameter
 	vars := mux.Vars(r)
 	key := vars["id"]
 
+	if app.DBType == "mysql" {
+		query = "DELETE FROM articles WHERE id=?"
+	} else if app.DBType == "postgres" {
+		query = "DELETE FROM articles WHERE id=$1"
+	}
+
 	// insert data into DB
-	response, err := app.Database.Exec(
-		"DELETE FROM articles WHERE id=?",
-		key,
-	)
+	response, err := app.Database.Exec(query, key)
 	// if there is an error inserting, handle it
 	if err != nil {
 		panic(err.Error())
 	}
 	log.Print(response.RowsAffected())
-	log.Println(" mysql delete performed.")
+	log.Println(" DB delete performed.")
 }
 
 //	ANY /homepage
@@ -265,7 +290,39 @@ func (app *App) deleteArticle(w http.ResponseWriter, r *http.Request) {
 func (app *App) homepage(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Endpoint hit : homepage")
-	fmt.Fprint(w, "Welcome to the homepage!")
+	fmt.Fprint(w, `
+- POST /article
+  - Add new article to DB
+  - payload :
+    {
+        Title     (string)
+        desc      (string)
+        content   (string)
+    }
+
+- PUT /article/{id}
+  - Update an existing article DB
+  - query param : id (article id from GET API)
+  - payload :
+    {
+        Title     (string)
+        desc      (string)
+        content   (string)
+    }
+
+- DELETE /article/{id}
+  - Deletes an entry from DB
+  - query param : id (article id from GET API)
+
+- GET /article/{id}
+  - Retrieves article data from DB for a given ID
+  - query param : id (article id from GET API) 
+
+- GET /articles
+  - retrives all articles from DB
+  - query params : id (last ID from previous GET call for pagination), limit (max entry per page)
+  - response : list of articles
+`)
 }
 
 // http handler methods init
@@ -287,40 +344,50 @@ func handleRequests(app *App) {
 }
 
 // establish DB connection for mysql DB
-func connectToDB() (db *sql.DB, err error) {
+func connectToDB(dbType string) (db *sql.DB, err error) {
 
-	const connectionString = "myuser:mypass@tcp(localhost:3306)/db"
+	var connectionString string
 
-	// establish new mysql db connection
-	db, err = sql.Open("mysql", connectionString)
+	// based on the db type set the connection string
+	if dbType == "mysql" {
+		connectionString = "myuser:mypass@tcp(localhost:3306)/db"
+	} else if dbType == "postgres" {
+		connectionString = "host=locahost port=5432 user=postgres password=mysecretpassword dbname=postgres sslmode=disable"
+	}
+
+	// establish new db connection
+	db, err = sql.Open(dbType, connectionString)
 
 	// if there is an error opening the connection, handle it
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// execute a ping on mysql DB
+	// execute a ping on DB
 	err = db.Ping()
 
 	// if there is an error opening the connection, handle it
 	if err != nil {
 		panic(err.Error())
 	}
-	log.Println("Established mysql DB connection for ", connectionString)
+	log.Println("Established "+dbType+" DB connection for ", connectionString)
 	return
 }
 
 // main function
 func main() {
 
+	dbType := "mysql" // mysql / postgres
+
 	// connect to DB
-	dbConn, err := connectToDB()
+	dbConn, err := connectToDB(dbType)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	// set new router
 	app := &App{
+		DBType:   dbType,
 		Router:   mux.NewRouter().StrictSlash(true),
 		Database: dbConn,
 	}
