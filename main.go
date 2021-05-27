@@ -276,7 +276,7 @@ func handleRequests(app *App) {
 
 	// http routes
 	app.Router.HandleFunc("/", app.homepage)
-	app.Router.HandleFunc("/articles", app.returnAllArticles)
+	app.Router.HandleFunc("/articles", app.returnAllArticles).Methods("GET")
 	app.Router.HandleFunc("/article", app.createNewArticle).Methods("POST")
 	app.Router.HandleFunc("/article/{id}", app.updateArticle).Methods("PUT")
 	app.Router.HandleFunc("/article/{id}", app.deleteArticle).Methods("DELETE")
