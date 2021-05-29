@@ -1,7 +1,7 @@
 /*
 REST API DEMO
 
-Methods : 
+Methods :
 createNewArticle, returnAllArticles, returnSingleArticle, updateArticle, homepage, deleteArticle, handleRequests, connectToDB, main
 */
 package main
@@ -9,9 +9,11 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
@@ -25,6 +27,7 @@ type (
 		DBType   string
 		Router   *mux.Router
 		Database *sql.DB
+		logger   *log.Logger
 	}
 
 	// Article contains the data to be details for data to be stored into DB
@@ -47,11 +50,11 @@ func (app *App) createNewArticle(w http.ResponseWriter, r *http.Request) {
 		article Article
 	)
 
-	log.Println("Endpoint hit : createNewArticle")
+	app.logger.Println("Endpoint hit : createNewArticle")
 	// get the payload from request
 	err := json.NewDecoder(r.Body).Decode(&article)
 	if err != nil {
-		fmt.Println(err)
+		app.logger.Println(err)
 	}
 
 	if app.DBType == "mysql" {
@@ -64,10 +67,11 @@ func (app *App) createNewArticle(w http.ResponseWriter, r *http.Request) {
 	response, err := app.Database.Exec(query, article.Title, article.Desc, article.Content)
 	// if there is an error inserting, handle it
 	if err != nil {
-		panic(err.Error())
+		app.logger.Println(err.Error())
+		return
 	}
-	log.Print(response.RowsAffected())
-	log.Println("inserted new record to DB")
+	app.logger.Print(response.RowsAffected())
+	app.logger.Println("inserted new record to DB")
 
 	// return the added article
 	json.NewEncoder(w).Encode(article)
@@ -86,7 +90,7 @@ func (app *App) returnAllArticles(w http.ResponseWriter, r *http.Request) {
 		articles    []Article
 	)
 
-	log.Println("Endpoint hit : returnAllArticles")
+	app.logger.Println("Endpoint hit : returnAllArticles")
 
 	// get the id and limit from param
 	lastID := r.URL.Query().Get("id")
@@ -115,7 +119,7 @@ func (app *App) returnAllArticles(w http.ResponseWriter, r *http.Request) {
 		}
 		queryParams = append(queryParams, lastID, limit)
 	}
-	log.Println(query, queryParams)
+	app.logger.Println(query, queryParams)
 
 	// insert data into DB
 	response, err := app.Database.Query(
@@ -124,7 +128,8 @@ func (app *App) returnAllArticles(w http.ResponseWriter, r *http.Request) {
 	)
 	// if there is an error inserting, handle it
 	if err != nil {
-		panic(err.Error())
+		app.logger.Println(err.Error())
+		return
 	}
 	defer response.Close()
 
@@ -142,20 +147,21 @@ func (app *App) returnAllArticles(w http.ResponseWriter, r *http.Request) {
 		)
 		// if there is an error inserting, handle it
 		if err != nil {
-			panic(err.Error())
+			app.logger.Println(err.Error())
+			return
 		}
 
 		// append to final list of articles
 		articles = append(articles, article)
 	}
-	log.Printf("article : %+v\n", articles)
+	app.logger.Printf("article : %+v\n", articles)
 
 	// generate JSON resopnse
 	err = json.NewEncoder(w).Encode(articles)
 	if err != nil {
-		fmt.Println(err)
+		app.logger.Println(err)
 	}
-	fmt.Println("Endpoint hit : return all articles")
+	app.logger.Println("Endpoint hit : return all articles")
 }
 
 //	GET /returnSingleArticle/{id}
@@ -170,7 +176,7 @@ func (app *App) returnSingleArticle(w http.ResponseWriter, r *http.Request) {
 		article Article
 	)
 
-	log.Println("Endpoint hit : returnSingleArticle")
+	app.logger.Println("Endpoint hit : returnSingleArticle")
 	// get url path parameters
 	vars := mux.Vars(r)
 	key := vars["id"]
@@ -185,7 +191,8 @@ func (app *App) returnSingleArticle(w http.ResponseWriter, r *http.Request) {
 	response, err := app.Database.Query(query, key)
 	// if there is an error inserting, handle it
 	if err != nil {
-		panic(err.Error())
+		app.logger.Println(err.Error())
+		return
 	}
 	defer response.Close()
 
@@ -201,10 +208,11 @@ func (app *App) returnSingleArticle(w http.ResponseWriter, r *http.Request) {
 		)
 		// if there is an error inserting, handle it
 		if err != nil {
-			panic(err.Error())
+			app.logger.Println(err.Error())
+			return
 		}
 	}
-	log.Printf("article : %+v\n", article)
+	app.logger.Printf("article : %+v\n", article)
 
 	// if article ID is not empty, return JSON response
 	if article.Id != 0 {
@@ -225,7 +233,7 @@ func (app *App) updateArticle(w http.ResponseWriter, r *http.Request) {
 		updatedArticle Article
 	)
 
-	log.Println("Endpoint hit : updateArticle")
+	app.logger.Println("Endpoint hit : updateArticle")
 	// get the path parameter
 	vars := mux.Vars(r)
 	key := vars["id"]
@@ -233,7 +241,7 @@ func (app *App) updateArticle(w http.ResponseWriter, r *http.Request) {
 	// get the payload data for article
 	err := json.NewDecoder(r.Body).Decode(&updatedArticle)
 	if err != nil {
-		fmt.Println(err)
+		app.logger.Println(err)
 	}
 
 	if app.DBType == "mysql" {
@@ -246,10 +254,11 @@ func (app *App) updateArticle(w http.ResponseWriter, r *http.Request) {
 	response, err := app.Database.Exec(query, updatedArticle.Title, updatedArticle.Desc, updatedArticle.Content, key)
 	// if there is an error inserting, handle it
 	if err != nil {
-		panic(err.Error())
+		app.logger.Println(err.Error())
+		return
 	}
-	log.Print(response.RowsAffected())
-	log.Println(" DB update performed.")
+	app.logger.Print(response.RowsAffected())
+	app.logger.Println(" DB update performed.")
 
 	// return the JSON response for added article
 	json.NewEncoder(w).Encode(updatedArticle)
@@ -263,7 +272,7 @@ func (app *App) deleteArticle(w http.ResponseWriter, r *http.Request) {
 
 	var query string
 
-	log.Println("Endpoint hit : deleteArticle")
+	app.logger.Println("Endpoint hit : deleteArticle")
 	// get url path parameter
 	vars := mux.Vars(r)
 	key := vars["id"]
@@ -278,10 +287,11 @@ func (app *App) deleteArticle(w http.ResponseWriter, r *http.Request) {
 	response, err := app.Database.Exec(query, key)
 	// if there is an error inserting, handle it
 	if err != nil {
-		panic(err.Error())
+		app.logger.Println(err.Error())
+		return
 	}
-	log.Print(response.RowsAffected())
-	log.Println(" DB delete performed.")
+	app.logger.Print(response.RowsAffected())
+	app.logger.Println(" DB delete performed.")
 }
 
 //	ANY /homepage
@@ -289,7 +299,7 @@ func (app *App) deleteArticle(w http.ResponseWriter, r *http.Request) {
 // home page of web server
 func (app *App) homepage(w http.ResponseWriter, r *http.Request) {
 
-	log.Println("Endpoint hit : homepage")
+	app.logger.Println("Endpoint hit : homepage")
 	fmt.Fprint(w, `
 - POST /article
   - Add new article to DB
@@ -326,7 +336,7 @@ func (app *App) homepage(w http.ResponseWriter, r *http.Request) {
 }
 
 // http handler methods init
-func handleRequests(app *App) {
+func handleRequests(app *App, port string) {
 
 	// start the gorilla mux router
 	app.Router = mux.NewRouter().StrictSlash(true)
@@ -340,27 +350,19 @@ func handleRequests(app *App) {
 	app.Router.HandleFunc("/article/{id}", app.returnSingleArticle).Methods("GET")
 
 	// start the server on port
-	log.Fatal(http.ListenAndServe(":7777", app.Router))
+	app.logger.Fatal(http.ListenAndServe(":"+port, app.Router))
 }
 
 // establish DB connection for mysql DB
-func connectToDB(dbType string) (db *sql.DB, err error) {
-
-	var connectionString string
-
-	// based on the db type set the connection string
-	if dbType == "mysql" {
-		connectionString = "myuser:mypass@tcp(localhost:3306)/db"
-	} else if dbType == "postgres" {
-		connectionString = "host=locahost port=5432 user=postgres password=mysecretpassword dbname=postgres sslmode=disable"
-	}
+func connectToDB(dbType, connectionString string, logger *log.Logger) (db *sql.DB, err error) {
 
 	// establish new db connection
 	db, err = sql.Open(dbType, connectionString)
 
 	// if there is an error opening the connection, handle it
 	if err != nil {
-		panic(err.Error())
+		logger.Println(err.Error())
+		return
 	}
 
 	// execute a ping on DB
@@ -368,28 +370,65 @@ func connectToDB(dbType string) (db *sql.DB, err error) {
 
 	// if there is an error opening the connection, handle it
 	if err != nil {
-		panic(err.Error())
+		logger.Println(err.Error())
+		return
 	}
-	log.Println("Established "+dbType+" DB connection for ", connectionString)
+	logger.Println("Established "+dbType+" DB connection for ", connectionString)
 	return
 }
 
 // main function
 func main() {
 
-	dbType := "mysql" // mysql / postgres
+	var connectionString string
+
+	dbType := flag.String("dbtype", "mysql", "choose the database type : mysql / postgres")
+	dbUser := flag.String("user", "root", "db user name")
+	dbPass := flag.String("pass", "my-secret-pw", "db password")
+	dbHost := flag.String("host", "localhost", "host address for DB")
+	dbPort := flag.String("dbport", "3306", "port of the running DB")
+	dbName := flag.String("db", "db", "database name for connection")
+	port := flag.String("port", "7777", "port for running this service")
+	flag.Parse()
+
+	// based on the db type set the connection string
+	if *dbType == "mysql" {
+
+		connectionString = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", *dbUser, *dbPass, *dbHost, *dbPort, *dbName)
+
+	} else if *dbType == "postgres" {
+
+		connectionString = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			*dbHost, *dbPort, *dbUser, *dbPass, *dbName,
+		)
+	}
+
+	// store the log file data to log file
+	logFile, _ := os.OpenFile(
+		"./restful_api.log",
+		os.O_TRUNC|os.O_CREATE|os.O_RDWR,
+		os.ModePerm,
+	)
+
+	logger := log.New(
+		logFile,
+		"INFO: ",
+		log.Ldate|log.Ltime|log.Lshortfile,
+	)
 
 	// connect to DB
-	dbConn, err := connectToDB(dbType)
+	dbConn, err := connectToDB(*dbType, connectionString, logger)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	// set new router
 	app := &App{
-		DBType:   dbType,
+		DBType:   *dbType,
 		Router:   mux.NewRouter().StrictSlash(true),
 		Database: dbConn,
+		logger:   logger,
 	}
 
 	// defer the close till after the main function has finished
@@ -397,5 +436,5 @@ func main() {
 	defer app.Database.Close()
 
 	// initialize the routes for rest API server
-	handleRequests(app)
+	handleRequests(app, *port)
 }

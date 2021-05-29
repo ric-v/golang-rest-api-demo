@@ -53,9 +53,9 @@ The storage used is MySQL.
 ## Installation
 
 installing and running mysql
-> docker run --name mysql-instance -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql
+> docker run --name mysql-instance -p 3306:3036 -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql
 >
-> docker exec -it mysql-instance mysql -u myuser -p
+> docker exec -it mysql-instance -p 5432:5432 mysql -u myuser -p
 
 installing running psql
 > docker run --name postgres-instance -e POSTGRES_PASSWORD=mysecretpassword -d postgres
